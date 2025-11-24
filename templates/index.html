@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCON-128 IoT Soil Monitoring Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
+            --gray: #95a5a6;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --radius: 10px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: var(--dark);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .logo i {
+            font-size: 2.5rem;
+            color: var(--secondary);
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: var(--gray);
+            font-size: 1.1rem;
+            margin-top: 5px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--light);
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .icon-connected {
+            background: var(--success);
+        }
+
+        .icon-disconnected {
+            background: var(--danger);
+        }
+
+        .icon-connecting {
+            background: var(--warning);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot-connected {
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .dot-disconnected {
+            background: var(--danger);
+        }
+
+        .dot-connecting {
+            background: var(--warning);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .data-display {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .moisture-value {
+            font-size: 4rem;
+            font-weight: 700;
+            text-align: center;
+            margin: 20px 0;
+            color: var(--primary);
+        }
+
+        .progress-container {
+            margin: 25px 0;
+        }
+
+        .progress-bar {
+            height: 30px;
+            background: var(--light);
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 15px;
+            transition: width 0.8s ease, background 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 15px;
+            color: white;
+            font-weight: 600;
+        }
+
+        .progress-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .condition-badge {
+            display: inline-block;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .condition-critical {
+            background: var(--danger);
+            color: white;
+        }
+
+        .condition-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .condition-optimal {
+            background: var(--success);
+            color: white;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            background: var(--light);
+            border-radius: var(--radius);
+        }
+
+        .info-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .info-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        .encryption-info {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .encryption-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .encryption-header i {
+            color: var(--secondary);
+            font-size: 1.5rem;
+        }
+
+        .encryption-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .detail-item {
+            padding: 10px;
+            background: var(--light);
+            border-radius: 8px;
+        }
+
+        .detail-label {
+            font-size: 0.85rem;
+            color: var(--gray);
+        }
+
+        .detail-value {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 5px;
+            word-break: break-all;
+        }
+
+        .error-message {
+            background: var(--danger);
+            color: white;
+            padding: 15px;
+            border-radius: var(--radius);
+            margin-top: 20px;
+            display: none;
+        }
+
+        .history-container {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .history-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 10px 15px;
+            border-left: 4px solid var(--secondary);
+            margin-bottom: 10px;
+            background: var(--light);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .history-time {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .history-value {
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .moisture-value {
+                font-size: 3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-seedling"></i>
+                <h1>ASCON-128 IoT Soil Monitoring</h1>
+            </div>
+            <p class="subtitle">Dashboard Monitoring Kelembaban Tanah dengan Enkripsi ASCON-128</p>
+        </header>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Status Koneksi</div>
+                    <div class="card-icon icon-connecting">
+                        <i class="fas fa-satellite-dish"></i>
+                    </div>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot dot-connecting"></div>
+                    <span id="mqtt-status">Menghubungkan ke MQTT Broker...</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Topik MQTT</span>
+                    <span class="info-value" id="mqtt-topic">soil-ascon128</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Status Sistem</div>
+                    <div class="card-icon">
+                        <i class="fas fa-microchip"></i>
+                    </div>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Klien Terhubung</span>
+                        <span class="info-value" id="client-count">1</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status Dekripsi</span>
+                        <span class="info-value" id="decryption-status">Menunggu Data</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Pembaruan Terakhir</span>
+                        <span class="info-value" id="last-update">N/A</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-display">
+            <div class="card-header">
+                <div class="card-title">Data Kelembaban Tanah</div>
+                <div class="card-icon">
+                    <i class="fas fa-tint"></i>
+                </div>
+            </div>
+
+            <div id="waiting-data">
+                <p style="text-align: center; padding: 30px; color: var(--gray);">
+                    <i class="fas fa-hourglass-half fa-2x" style="margin-bottom: 15px;"></i><br>
+                    Menunggu data terenkripsi dari sensor...
+                </p>
+            </div>
+
+            <div id="data-content" style="display: none;">
+                <div class="moisture-value" id="moisture-value">--%</div>
+                
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill" style="width: 0%">0%</div>
+                    </div>
+                    <div class="progress-labels">
+                        <span>Kering</span>
+                        <span>Optimal</span>
+                        <span>Basah</span>
+                    </div>
+                </div>
+
+                <div id="condition-badge" class="condition-badge condition-optimal">Status: OPTIMAL</div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Status Verifikasi</span>
+                        <span class="info-value" id="verification-status">TAG_MATCH</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Waktu Penerimaan</span>
+                        <span class="info-value" id="timestamp">N/A</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Tanggal</span>
+                        <span class="info-value" id="date-value">N/A</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="error-message" class="error-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span id="error-text">Terjadi kesalahan dalam memproses data</span>
+            </div>
+        </div>
+
+        <div class="encryption-info">
+            <div class="encryption-header">
+                <i class="fas fa-lock"></i>
+                <h3>Informasi Keamanan & Enkripsi</h3>
+            </div>
+            <div class="encryption-details">
+                <div class="detail-item">
+                    <div class="detail-label">Algoritma</div>
+                    <div class="detail-value">ASCON-128</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Status Keamanan</div>
+                    <div class="detail-value" id="security-status">Aman</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Mode Operasi</div>
+                    <div class="detail-value">AEAD (Authenticated Encryption)</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Integritas Data</div>
+                    <div class="detail-value" id="integrity-status">Terverifikasi</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="history-container">
+            <div class="history-title">
+                <i class="fas fa-history"></i> Riwayat Pembaruan
+            </div>
+            <div class="history-list" id="history-list">
+                <div class="history-item">
+                    <div class="history-time">Sistem dimulai</div>
+                    <div class="history-value">Menunggu data pertama...</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>ASCON-128 IoT Soil Monitoring Dashboard &copy; 2023 | Keamanan Data Terjamin</p>
+        </footer>
+    </div>
+
+    <script>
+        const socket = io();
+        let historyCount = 0;
+        const maxHistoryItems = 5;
+
+        // Update status koneksi
+        socket.on('connect', function() {
+            updateConnectionStatus('connected', 'Terhubung ke Server Backend');
+            document.getElementById('client-count').textContent = '1';
+        });
+
+        socket.on('disconnect', function() {
+            updateConnectionStatus('disconnected', 'Terputus dari Server');
+        });
+
+        // Tangani status MQTT
+        socket.on('mqtt_status', function(data) {
+            if (data.status === 'connected') {
+                updateConnectionStatus('connected', `Terhubung ke MQTT Broker: ${data.topic}`);
+            } else if (data.status === 'disconnected') {
+                updateConnectionStatus('disconnected', `MQTT Terputus: ${data.error || 'Unknown error'}`);
+            }
+        });
+
+        // Tangani data baru
+        socket.on('new_data', function(data) {
+            historyCount++;
+            
+            // Tambahkan ke riwayat
+            addToHistory(data);
+            
+            // Perbarui timestamp
+            document.getElementById('last-update').textContent = data.timestamp || 'N/A';
+            
+            if (data.status === 'success') {
+                showDataContent();
+                updateMoistureData(data);
+                updateSecurityStatus('success');
+            } else {
+                showError(data.message);
+                updateSecurityStatus('error');
+            }
+        });
+
+        // Tangani data terakhir (jika ada)
+        socket.on('last_data', function(data) {
+            if (data.status === 'success') {
+                showDataContent();
+                updateMoistureData(data);
+            }
+        });
+
+        // Tangani status sistem
+        socket.on('system_status', function(data) {
+            document.getElementById('client-count').textContent = data.connected_clients;
+            document.getElementById('last-update').textContent = data.last_update || 'N/A';
+        });
+
+        // Fungsi untuk memperbarui status koneksi
+        function updateConnectionStatus(status, message) {
+            const statusElement = document.getElementById('mqtt-status');
+            const statusDot = document.querySelector('.status-dot');
+            const cardIcon = document.querySelector('.card-icon');
+            
+            statusElement.textContent = message;
+            
+            // Hapus semua kelas status
+            statusDot.classList.remove('dot-connected', 'dot-disconnected', 'dot-connecting');
+            cardIcon.classList.remove('icon-connected', 'icon-disconnected', 'icon-connecting');
+            
+            // Tambahkan kelas status yang sesuai
+            if (status === 'connected') {
+                statusDot.classList.add('dot-connected');
+                cardIcon.classList.add('icon-connected');
+                statusElement.style.color = 'var(--success)';
+            } else if (status === 'disconnected') {
+                statusDot.classList.add('dot-disconnected');
+                cardIcon.classList.add('icon-disconnected');
+                statusElement.style.color = 'var(--danger)';
+            } else {
+                statusDot.classList.add('dot-connecting');
+                cardIcon.classList.add('icon-connecting');
+                statusElement.style.color = 'var(--warning)';
+            }
+        }
+
+        // Fungsi untuk menampilkan konten data
+        function showDataContent() {
+            document.getElementById('waiting-data').style.display = 'none';
+            document.getElementById('data-content').style.display = 'block';
+            document.getElementById('error-message').style.display = 'none';
+        }
+
+        // Fungsi untuk memperbarui data kelembaban
+        function updateMoistureData(data) {
+            document.getElementById('moisture-value').textContent = `${data.value}%`;
+            document.getElementById('verification-status').textContent = data.verification;
+            document.getElementById('timestamp').textContent = data.timestamp;
+            document.getElementById('date-value').textContent = data.date || 'N/A';
+            document.getElementById('decryption-status').textContent = 'Berhasil';
+            
+            // Perbarui progress bar
+            const progressFill = document.getElementById('progress-fill');
+            progressFill.style.width = `${data.value}%`;
+            progressFill.textContent = `${data.value}%`;
+            
+            // Sesuaikan warna progress bar berdasarkan nilai
+            if (data.value < 20) {
+                progressFill.style.backgroundColor = 'var(--danger)';
+            } else if (data.value < 40) {
+                progressFill.style.backgroundColor = 'var(--warning)';
+            } else if (data.value < 70) {
+                progressFill.style.backgroundColor = 'var(--success)';
+            } else {
+                progressFill.style.backgroundColor = 'var(--warning)';
+            }
+            
+            // Perbarui badge kondisi
+            const conditionBadge = document.getElementById('condition-badge');
+            conditionBadge.textContent = `Status: ${data.status_text}`;
+            
+            // Sesuaikan kelas kondisi
+            conditionBadge.classList.remove('condition-critical', 'condition-warning', 'condition-optimal');
+            
+            if (data.status_level === 'critical') {
+                conditionBadge.classList.add('condition-critical');
+            } else if (data.status_level === 'warning') {
+                conditionBadge.classList.add('condition-warning');
+            } else {
+                conditionBadge.classList.add('condition-optimal');
+            }
+        }
+
+        // Fungsi untuk menampilkan error
+        function showError(message) {
+            document.getElementById('waiting-data').style.display = 'none';
+            document.getElementById('data-content').style.display = 'none';
+            document.getElementById('error-message').style.display = 'block';
+            document.getElementById('error-text').textContent = message;
+            document.getElementById('decryption-status').textContent = 'Gagal';
+        }
+
+        // Fungsi untuk memperbarui status keamanan
+        function updateSecurityStatus(status) {
+            const securityStatus = document.getElementById('security-status');
+            const integrityStatus = document.getElementById('integrity-status');
+            
+            if (status === 'success') {
+                securityStatus.textContent = 'Aman';
+                securityStatus.style.color = 'var(--success)';
+                integrityStatus.textContent = 'Terverifikasi';
+                integrityStatus.style.color = 'var(--success)';
+            } else {
+                securityStatus.textContent = 'Rentan';
+                securityStatus.style.color = 'var(--danger)';
+                integrityStatus.textContent = 'Gagal Verifikasi';
+                integrityStatus.style.color = 'var(--danger)';
+            }
+        }
+
+        // Fungsi untuk menambahkan item ke riwayat
+        function addToHistory(data) {
+            const historyList = document.getElementById('history-list');
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+            
+            const time = data.timestamp || new Date().toLocaleTimeString();
+            const value = data.status === 'success' ? `${data.value}% - ${data.status_text}` : `Error: ${data.message}`;
+            
+            historyItem.innerHTML = `
+                <div class="history-time">${time}</div>
+                <div class="history-value">${value}</div>
+            `;
+            
+            // Tambahkan di awal daftar
+            historyList.insertBefore(historyItem, historyList.firstChild);
+            
+            // Batasi jumlah item riwayat
+            if (historyList.children.length > maxHistoryItems) {
+                historyList.removeChild(historyList.lastChild);
+            }
+        }
+
+        // Minta status sistem saat pertama kali dimuat
+        socket.emit('request_status');
+    </script>
+</body>
+</html>
