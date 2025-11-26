@@ -153,11 +153,14 @@ def on_message(client, userdata, msg):
         logger.error(f"❌ Error processing MQTT payload: {e}")
 
 # --- MQTT CLIENT MANAGEMENT ---
+# --- MQTT CLIENT MANAGEMENT ---
 def create_mqtt_client():
     """
-    Membuat dan mengkonfigurasi client MQTT
+    Membuat dan mengkonfigurasi client MQTT (compatible dengan semua versi)
     """
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, MQTT_CLIENT_ID)
+    # Gunakan constructor yang compatible dengan versi lama
+    client = mqtt.Client(client_id=MQTT_CLIENT_ID, protocol=mqtt.MQTTv311)
+    
     client.on_connect = on_connect
     client.on_message = on_message
     client.on_disconnect = on_disconnect
