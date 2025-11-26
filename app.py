@@ -294,27 +294,15 @@ def initialize_app():
     logger.info("✅ MQTT client thread started")
 
 # --- MAIN EXECUTION ---
+# Initialize the app
+initialize_app()
+
+# For Gunicorn
+application = app
+
+# Hanya untuk development
 if __name__ == '__main__':
-    # Inisialisasi aplikasi
-    initialize_app()
-    
-    # Dapatkan port dari environment variable (Railway menyediakan ini)
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('DEBUG', 'False').lower() == 'true'
-    
-    logger.info(f"📊 Soil Moisture Monitoring Dashboard is running!")
-    logger.info(f"🌐 Access the dashboard at: http://0.0.0.0:{port}")
-    
-    try:
-        # Jalankan aplikasi dengan SocketIO
-        socketio.run(
-            app, 
-            debug=debug, 
-            port=port, 
-            host='0.0.0.0',  # Penting untuk Railway
-            allow_unsafe_werkzeug=debug  # Hanya di debug mode
-        )
-    except KeyboardInterrupt:
-        logger.info("🛑 Server stopped by user")
-    except Exception as e:
-        logger.error(f"💥 Server error: {e}")
+    logger.info(f"🚀 Development server on port {port}")
+    socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
