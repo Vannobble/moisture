@@ -1,4 +1,4 @@
-# app.py
+import os
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 import paho.mqtt.client as mqtt
@@ -19,15 +19,21 @@ VARIANT = "Ascon-128"
 
 # --- KONFIGURASI MQTT ---
 MQTT_CLIENT_ID = f"web-dashboard-subscriber-{int(time.time())}"
-MQTT_BROKER = "broker.hivemq.com"
-MQTT_TOPIC = "soil-ascon128"
-MQTT_PORT = 1883
+MQTT_BROKER = os.environ.get('MQTT_BROKER', 'broker.hivemq.com')  # Gunakan environment variable
+MQTT_TOPIC = os.environ.get('MQTT_TOPIC', 'soil-ascon128')
+MQTT_PORT = int(os.environ.get('MQTT_PORT', 1883))
 MQTT_KEEPALIVE = 60
 
 # --- KONFIGURASI FLASK & SOCKET.IO ---
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'kunci_rahasia_anda'
-socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*")
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'kunci_rahasia_anda_dev')
+socketio = SocketIO(
+    app, 
+    async_mode='threading', 
+    cors_allowed_origins="*",
+    logger=True if os.environ.get('DEBUG') else False,
+    engineio_logger=True if os.environ.get('DEBUG') else False
+)
 
 # --- SETUP LOGGING ---
 logging.basicConfig(
@@ -39,6 +45,7 @@ logger = logging.getLogger(__name__)
 # --- VARIABEL GLOBAL ---
 connected_clients = 0
 last_data = None
+mqtt_client = None
 
 # --- FUNGSI DEKRIPSI ---
 def ascon_decrypt_payload(encrypted_hex_string):
@@ -153,28 +160,36 @@ def on_message(client, userdata, msg):
         logger.error(f"❌ Error processing MQTT payload: {e}")
 
 # --- MQTT CLIENT MANAGEMENT ---
-# --- MQTT CLIENT MANAGEMENT ---
 def create_mqtt_client():
     """
-    Membuat dan mengkonfigurasi client MQTT (compatible dengan semua versi)
+    Membuat dan mengkonfigurasi client MQTT
     """
-    # Gunakan constructor yang compatible dengan versi lama
-    client = mqtt.Client(client_id=MQTT_CLIENT_ID, protocol=mqtt.MQTTv311)
-    
-    client.on_connect = on_connect
-    client.on_message = on_message
-    client.on_disconnect = on_disconnect
-    
-    # Konfigurasi tambahan
-    client.reconnect_delay_set(min_delay=1, max_delay=120)
-    
-    return client
+    try:
+        # Gunakan constructor yang compatible
+        client = mqtt.Client(client_id=MQTT_CLIENT_ID, protocol=mqtt.MQTTv311)
+        
+        client.on_connect = on_connect
+        client.on_message = on_message
+        client.on_disconnect = on_disconnect
+        
+        # Konfigurasi tambahan
+        client.reconnect_delay_set(min_delay=1, max_delay=120)
+        
+        return client
+    except Exception as e:
+        logger.error(f"❌ Failed to create MQTT client: {e}")
+        return None
 
 def start_mqtt_client():
     """
     Menjalankan client MQTT dalam thread terpisah
     """
+    global mqtt_client
     mqtt_client = create_mqtt_client()
+    
+    if mqtt_client is None:
+        logger.error("❌ Cannot start MQTT client - creation failed")
+        return
     
     while True:
         try:
@@ -200,7 +215,22 @@ def health_check():
         "status": "healthy",
         "service": "Soil Moisture Dashboard",
         "timestamp": datetime.now().isoformat(),
-        "connected_clients": connected_clients
+        "connected_clients": connected_clients,
+        "mqtt_broker": MQTT_BROKER,
+        "mqtt_topic": MQTT_TOPIC,
+        "environment": "production" if not os.environ.get('DEBUG') else "development"
+    }
+
+@app.route('/status')
+def status_page():
+    """Halaman status untuk monitoring"""
+    return {
+        "app": "ASCON-128 IoT Soil Monitoring",
+        "version": "1.0.0",
+        "status": "running",
+        "last_data": last_data,
+        "connected_clients": connected_clients,
+        "mqtt_connected": mqtt_client.is_connected() if mqtt_client else False
     }
 
 # --- SOCKET.IO EVENT HANDLERS ---
@@ -217,7 +247,8 @@ def handle_connect():
     
     emit('connection_ack', {
         'message': 'Connected to server',
-        'clients_count': connected_clients
+        'clients_count': connected_clients,
+        'server_time': datetime.now().isoformat()
     })
 
 @socketio.on('disconnect')
@@ -233,30 +264,56 @@ def handle_status_request():
     emit('system_status', {
         'connected_clients': connected_clients,
         'mqtt_topic': MQTT_TOPIC,
-        'last_update': last_data.get('timestamp') if last_data else None
+        'mqtt_broker': MQTT_BROKER,
+        'last_update': last_data.get('timestamp') if last_data else None,
+        'server_time': datetime.now().isoformat()
     })
+
+# --- ERROR HANDLERS ---
+@app.errorhandler(404)
+def not_found(error):
+    return {"error": "Endpoint not found", "status": 404}, 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return {"error": "Internal server error", "status": 500}, 500
+
+# --- INITIALIZATION ---
+def initialize_app():
+    """Fungsi inisialisasi aplikasi"""
+    logger.info("🚀 Initializing ASCON-128 IoT Soil Monitoring Dashboard")
+    logger.info(f"🌐 MQTT Broker: {MQTT_BROKER}:{MQTT_PORT}")
+    logger.info(f"📊 MQTT Topic: {MQTT_TOPIC}")
+    logger.info(f"🔧 Debug Mode: {os.environ.get('DEBUG', 'False')}")
+    
+    # Jalankan MQTT client di thread terpisah
+    mqtt_thread = threading.Thread(target=start_mqtt_client)
+    mqtt_thread.daemon = True
+    mqtt_thread.start()
+    
+    logger.info("✅ MQTT client thread started")
 
 # --- MAIN EXECUTION ---
 if __name__ == '__main__':
+    # Inisialisasi aplikasi
+    initialize_app()
+    
+    # Dapatkan port dari environment variable (Railway menyediakan ini)
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('DEBUG', 'False').lower() == 'true'
+    
+    logger.info(f"📊 Soil Moisture Monitoring Dashboard is running!")
+    logger.info(f"🌐 Access the dashboard at: http://0.0.0.0:{port}")
+    
     try:
-        # Jalankan MQTT di thread terpisah
-        mqtt_thread = threading.Thread(target=start_mqtt_client)
-        mqtt_thread.daemon = True
-        mqtt_thread.start()
-        
-        logger.info("🚀 Starting Flask Server with Socket.IO...")
-        logger.info("📊 Soil Moisture Monitoring Dashboard is running!")
-        logger.info(f"🌐 Access the dashboard at: http://localhost:5000")
-        
-        # Jalankan SocketIO server
+        # Jalankan aplikasi dengan SocketIO
         socketio.run(
             app, 
-            debug=True, 
-            port=5000, 
-            host='0.0.0.0',
-            allow_unsafe_werkzeug=True
+            debug=debug, 
+            port=port, 
+            host='0.0.0.0',  # Penting untuk Railway
+            allow_unsafe_werkzeug=debug  # Hanya di debug mode
         )
-        
     except KeyboardInterrupt:
         logger.info("🛑 Server stopped by user")
     except Exception as e:
