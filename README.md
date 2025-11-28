@@ -197,15 +197,10 @@ Proyek ini bebas digunakan untuk pembelajaran, riset, atau integrasi IoT pribadi
 
 ## 👤 Author
 
-**Doshansel Sihombing**  
+**Doshansel Sihombing - 235150301111001**  
+**Phasya Vigo Khalil Nugroho - 235150300111004**  
+**Muhammad Rafie Habibi Fauzi  - 235150301111009**  
 Universitas Brawijaya — Computer Engineering
 
----
 
-<div align="center">
-  
-**🌐 Akses Dashboard: [https://moisture-display.up.railway.app/](https://moisture-display.up.railway.app/)**
 
-**⭐ Jangan lupa beri star jika project ini membantu! ⭐**
-
-</div>
