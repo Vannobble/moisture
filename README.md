@@ -189,18 +189,13 @@ Project ini di-deploy menggunakan **Railway**. Untuk deployment serupa:
 
 ---
 
-## 📝 Lisensi
-
-Proyek ini bebas digunakan untuk pembelajaran, riset, atau integrasi IoT pribadi.
-
----
-
 ## 👤 Author
 
-**Doshansel Sihombing - 235150301111001**  
-**Phasya Vigo Khalil Nugroho - 235150300111004**  
-**Muhammad Rafie Habibi Fauzi  - 235150301111009**  
+**Doshansel Sihombing           - 235150301111001**  
+**Phasya Vigo Khalil Nugroho    - 235150300111004**  
+**Muhammad Rafie Habibi Fauzi   - 235150301111009**  
 Universitas Brawijaya — Computer Engineering
+
 
 
 
