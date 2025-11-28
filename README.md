@@ -3,6 +3,8 @@
 Dashboard ini digunakan untuk menampilkan data soil moisture yang dikirim melalui protokol MQTT dalam bentuk **payload terenkripsi ASCON-128**.  
 Server Flask akan menerima payload dari broker MQTT → menampilkan **raw data (payload asli)** → mendekripsi → lalu mengirimkan data ke dashboard web melalui **Socket.IO**.
 
+🌐 **Akses Dashboard Online**: [https://moisture-display.up.railway.app/](https://moisture-display.up.railway.app/)
+
 ---
 
 ## 🚀 Features
@@ -13,127 +15,197 @@ Server Flask akan menerima payload dari broker MQTT → menampilkan **raw data (
 - 🌐 Dashboard web dengan auto-refresh data
 - 🧩 Menampilkan **raw payload sebelum didekripsi**
 - 📝 Log lengkap untuk debugging
+- ☁️ **Deployed online** via Railway
 
 ---
 
 ## 📁 Struktur Proyek
 
+```
 .
-├── app.py # Server utama Flask + MQTT + Socket.IO
-├── ascon.py # Implementasi Ascon (AEAD)
-├── requirements.txt # Dependency Python
+├── app.py                 # Server utama Flask + MQTT + Socket.IO
+├── ascon.py               # Implementasi Ascon (AEAD)
+├── requirements.txt       # Dependency Python
+├── runtime.txt           # Python version specification
 └── templates/
-└── index.html # Dashboard utama
-
-yaml
-Copy code
+    └── index.html         # Dashboard utama
+```
 
 ---
 
-## 📦 Install Dependencies
+## 📦 Dependencies
 
-Pastikan Python Anda versi **3.8 atau lebih baru**.
+Project ini menggunakan Python **3.8 atau lebih baru**.
 
-```bash
-pip install -r requirements.txt
-Jika Anda belum membuat requirements.txt, contoh isi minimum:
+**requirements.txt**:
+```txt
+flask==2.3.3
+flask-socketio==5.3.6
+paho-mqtt==1.6.1
+eventlet==0.33.3
+ascon==0.2.0
+gunicorn==21.2.0
+```
 
-rust
-Copy code
-flask
-flask-socketio
-paho-mqtt
-eventlet
-ascon
-▶️ Cara Menjalankan Server
-Clone repository:
+---
 
-bash
-Copy code
-git clone https://github.com/username/repo-name.git
-cd repo-name
-Jalankan server Flask:
+## 🌐 Akses Dashboard
 
-bash
-Copy code
-python app.py
-Jika sukses, Anda akan melihat output seperti:
+**Dashboard sudah tersedia online** di:
+```arduino
+https://moisture-display.up.railway.app/
+```
 
-arduino
-Copy code
-🚀 Starting Flask Server with Socket.IO...
-📊 Soil Moisture Monitoring Dashboard is running!
-🌐 Access the dashboard at: http://localhost:5000
-🔗 Connecting to MQTT broker...
-🌐 Mengakses Dashboard
-Buka browser:
-
-arduino
-Copy code
-http://localhost:5000
 Dashboard akan otomatis menerima:
+- **raw MQTT payload** (raw_data)
+- **hasil dekripsi** (new_data)
+- **status koneksi** daemon MQTT
 
-raw MQTT payload (raw_data)
+---
 
-hasil dekripsi (new_data)
+## 📡 Format Data MQTT
 
-status koneksi daemon MQTT
-
-📡 Format Data MQTT
 Payload yang dikirim oleh device HARUS berupa JSON:
 
-json
-Copy code
+```json
 {
     "id": 13,
-    "data": "fba1637956fc9c27af8e3d89ad7032b4dbfc"
+    "data": "fba1637956fc9c27af8e3d89ad7032b4dbfc0123456789abcdef"
 }
-Field data adalah ciphertext + tag dalam bentuk hex.
+```
 
-🔓 Cara Dekripsi
+Field `data` adalah ciphertext + tag dalam bentuk hex (minimal 32 karakter).
+
+---
+
+## 🔓 Proses Dekripsi
+
 Pada penerimaan pesan MQTT:
 
-Menampilkan raw payload:
-
-python
-Copy code
+1. **Menampilkan raw payload**:
+```python
 socketio.emit('raw_data', {"raw_payload": payload_str})
-Mendekripsi:
+```
 
-python
-Copy code
+2. **Mendekripsi**:
+```python
 result = ascon_decrypt_payload(encrypted_hex)
-Mengirim ke front-end:
+```
 
-python
-Copy code
+3. **Mengirim ke front-end**:
+```python
 socketio.emit('new_data', result)
-🧪 Testing MQTT secara manual
-Gunakan MQTTX, MQTT Explorer, atau command-line:
+```
 
-bash
-Copy code
-mosquitto_pub -h broker.hivemq.com -t soil-ascon128 -m '{"data":"0123456789abcdef"}'
-Dashboard akan langsung menampilkan RAW PAYLOAD-nya.
+---
 
-🛠 Troubleshooting
-❌ Tidak menerima data?
-Pastikan topic MQTT sesuai: soil-ascon128
+## 🧪 Testing MQTT
 
-Periksa firewall port 1883
+Gunakan MQTT client untuk mengirim data test:
 
-Pastikan payload dalam format JSON valid
+**Topic**: `soil-ascon128`  
+**Broker**: `broker.hivemq.com`  
+**Port**: `1883`
 
-❌ Dekripsi gagal?
-Kunci Ascon harus sama antara device dan server
+**Contoh payload test**:
+```json
+{
+    "id": 1,
+    "data": "0123456789abcdef0123456789abcdef0123456789abcdef"
+}
+```
 
-Pastikan ciphertext + tag lengkap
+Dashboard online akan langsung menampilkan **RAW PAYLOAD** dan hasil dekripsi.
 
-Cek panjang hex tidak genap → invalid
+---
 
-📝 Lisensi
+## 🛠 Troubleshooting
+
+### ❌ Tidak menerima data?
+- Pastikan topic MQTT sesuai: `soil-ascon128`
+- Periksa koneksi internet device
+- Pastikan payload dalam format JSON valid
+- Cek broker HiveMQ status
+
+### ❌ Dekripsi gagal?
+- Kunci Ascon harus sama antara device dan server
+- Pastikan ciphertext + tag lengkap (minimal 32 karakter hex)
+- Format hex harus valid
+
+### ❌ Dashboard tidak bisa diakses?
+- Cek status deployment di [Railway](https://railway.app)
+- Refresh browser dan clear cache
+- Pastikan menggunakan HTTPS
+
+### ❌ Socket.IO connection error?
+- Pastikan browser mendukung WebSocket
+- Cek browser console untuk error detail
+- Refresh halaman
+
+---
+
+## ⚙️ Konfigurasi Server
+
+### Kunci ASCON-128
+Kunci enkripsi/dekripsi yang digunakan server:
+
+```python
+ASCON_KEY = b'0123456789abcdef'  # 16 bytes untuk ASCON-128
+ASCON_NONCE = b'0123456789abcdef'  # 16 bytes nonce
+```
+
+### MQTT Configuration
+- **Topic**: `soil-ascon128`
+- **Broker**: `broker.hivemq.com`
+- **Port**: `1883`
+- **Protocol**: MQTT v3.1.1
+
+---
+
+## 📊 Format Data Hasil Dekripsi
+
+Setelah berhasil didekripsi, data akan berformat:
+
+```json
+{
+    "sensor_id": 1,
+    "soil_moisture": 65.5,
+    "temperature": 28.3,
+    "humidity": 75.2,
+    "timestamp": "2024-01-15T10:30:00Z",
+    "battery": 85.0
+}
+```
+
+---
+
+## 🚀 Deployment
+
+Project ini di-deploy menggunakan **Railway**. Untuk deployment serupa:
+
+1. Connect repository ke Railway
+2. Set environment variables jika diperlukan
+3. Deploy otomatis dari main branch
+
+---
+
+## 📝 Lisensi
+
 Proyek ini bebas digunakan untuk pembelajaran, riset, atau integrasi IoT pribadi.
 
-👤 Author
-Doshansel Sihombing
+---
+
+## 👤 Author
+
+**Doshansel Sihombing**  
 Universitas Brawijaya — Computer Engineering
+
+---
+
+<div align="center">
+  
+**🌐 Akses Dashboard: [https://moisture-display.up.railway.app/](https://moisture-display.up.railway.app/)**
+
+**⭐ Jangan lupa beri star jika project ini membantu! ⭐**
+
+</div>
